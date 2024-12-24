@@ -963,7 +963,9 @@ int main(int argc, char **argv)
     avformat_network_init();
 
     show_banner(argc, argv, options);
-    av_log(NULL, AV_LOG_WARNING, "[FFmpeg_AES] \n");
+    av_log(NULL, AV_LOG_WARNING, "[FFmpeg_AES] The input is expected to be AES encrypted.\n");
+    av_log(NULL, AV_LOG_WARNING, "[FFmpeg_AES] The output will be AES encrypted.\n");
+    av_log(NULL, AV_LOG_INFO, "[FFmpeg_AES] The keys were generated during the build process.\n");
 
     sch = sch_alloc();
     if (!sch) {

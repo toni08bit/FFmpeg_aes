@@ -2,7 +2,6 @@
 #include <openssl/evp.h>
 
 #include <libavutil/log.h>
-#include <ffmpeg_aes/secrets.c>
 
 #define BLOCK_SIZE 16
 
@@ -35,6 +34,8 @@ static int aes_ctr_decrypt_blockwise(EVP_CIPHER_CTX *ecb_ctx, unsigned char *buf
         output_len = 0;
         upd_ret = EVP_EncryptUpdate(ecb_ctx, keystream, &output_len, base_counter, BLOCK_SIZE);
         if (upd_ret != 1) {
+            av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt a block.");
+            return -1;
             // error
         }
         block_bytes = (BLOCK_SIZE - local_offset_edit);

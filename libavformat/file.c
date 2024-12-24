@@ -43,6 +43,7 @@
 #include "url.h"
 
 #include <ffmpeg_aes/aes_util.c>
+#include <ffmpeg_aes/secrets.c>
 
 /* Some systems may not have S_ISFIFO */
 #ifndef S_ISFIFO
@@ -169,11 +170,13 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
         }
         c->lc->ecb_ctx = EVP_CIPHER_CTX_new();
         if (!c->lc->ecb_ctx) {
-            //error
+            av_log(NULL, AV_LOG_FATAL, "Failed to create aes-context.");
+            return -1;
         }
-        init_ret = EVP_EncryptInit_ex(c->lc->ecb_ctx, EVP_aes_256_ecb(), NULL, aes_key, NULL);
+        init_ret = EVP_EncryptInit_ex(c->lc->ecb_ctx, EVP_aes_256_ecb(), NULL, aes_key_in, NULL);
         if (init_ret != 1) {
-            // error
+            av_log(NULL, AV_LOG_FATAL, "Failed to initialize ecb for aes-context.");
+            return -1;
         }
         EVP_CIPHER_CTX_set_padding(c->lc->ecb_ctx, 0);
     }
@@ -204,24 +207,26 @@ static int aes_read(FileContext *c, unsigned char *buf, int size) {
     }
     ciphertext = (unsigned char *)malloc(size);
     if (!ciphertext) {
-        // error
+        av_log(NULL, AV_LOG_FATAL, "Failed to allocate ciphertext buffer.");
+        return -1;
     }
     
     bytes_read = read(c->fd, ciphertext, size);
-    if (bytes_read == 0) {
-        // eof
-    }
+    // if (bytes_read == 0) {
+    //     // eof
+    // }
 
     block_index = (offset / BLOCK_SIZE);
     local_offset = (offset % BLOCK_SIZE);
 
-    increment_counter(aes_nonce,block_index,base_counter);
+    increment_counter(aes_nonce_in,block_index,base_counter);
 
     dec_ret = aes_ctr_decrypt_blockwise(c->lc->ecb_ctx, ciphertext, (size_t)bytes_read, base_counter, (size_t)local_offset);
     if (dec_ret != 0) {
-        // error
+        av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt ciphertext buffer.");
+        return -1;
     }
-    
+
     memcpy(buf, ciphertext, bytes_read);
     return bytes_read;
 }
