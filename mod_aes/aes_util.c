@@ -36,7 +36,6 @@ static int aes_ctr_decrypt_blockwise(EVP_CIPHER_CTX *ecb_ctx, unsigned char *buf
         if (upd_ret != 1) {
             av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt a block.");
             return -1;
-            // error
         }
         block_bytes = (BLOCK_SIZE - local_offset_edit);
         if (block_bytes > (length - processed)) {

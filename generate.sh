@@ -21,7 +21,7 @@ if [ $? -ne 0 ]; then
     exit
 fi
 
-mv ffmpeg ffmpeg_aes
+mv ffmpeg ffmpeg_aes -f
 
 echo ""
 echo ""

@@ -101,6 +101,7 @@ typedef struct FileContext {
     int seekable;
     AesLayerContext *lc;
     int aes_initialized;
+    int aes_seek_enabled;
 #if HAVE_DIRENT_H
     DIR *dir;
 #endif
@@ -164,8 +165,9 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
         int init_ret;
         c->aes_initialized = 1;
         c->lc = (AesLayerContext *)av_malloc(sizeof(AesLayerContext));
+        c->aes_seek_enabled = !h->is_streamed;
         
-        if (!c->seekable) {
+        if (!c->aes_seek_enabled) {
             c->lc->stream_cursor = 0;
         }
         c->lc->ecb_ctx = EVP_CIPHER_CTX_new();
@@ -200,14 +202,13 @@ static int aes_read(FileContext *c, unsigned char *buf, int size) {
     unsigned char base_counter[BLOCK_SIZE];
     int dec_ret;
     
-    if (c->seekable) {
+    if (c->aes_seek_enabled) {
         offset = lseek(c->fd, 0, SEEK_CUR);
     } else {
         offset = c->lc->stream_cursor;
     }
     ciphertext = (unsigned char *)malloc(size);
     if (!ciphertext) {
-        av_log(NULL, AV_LOG_FATAL, "Failed to allocate ciphertext buffer.");
         return -1;
     }
     
@@ -222,6 +223,9 @@ static int aes_read(FileContext *c, unsigned char *buf, int size) {
     increment_counter(aes_nonce_in,block_index,base_counter);
 
     dec_ret = aes_ctr_decrypt_blockwise(c->lc->ecb_ctx, ciphertext, (size_t)bytes_read, base_counter, (size_t)local_offset);
+    if (!c->aes_seek_enabled) {
+        c->lc->stream_cursor += bytes_read;
+    }
     if (dec_ret != 0) {
         av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt ciphertext buffer.");
         return -1;
