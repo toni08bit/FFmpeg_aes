@@ -160,7 +160,6 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
     FileContext *c = h->priv_data;
     int ret;
 
-    // c->ucp = h;
     if (!c->aes_initialized) {
         int init_ret;
         c->aes_initialized = 1;
@@ -213,9 +212,6 @@ static int aes_read(FileContext *c, unsigned char *buf, int size) {
     }
     
     bytes_read = read(c->fd, ciphertext, size);
-    // if (bytes_read == 0) {
-    //     // eof
-    // }
 
     block_index = (offset / BLOCK_SIZE);
     local_offset = (offset % BLOCK_SIZE);

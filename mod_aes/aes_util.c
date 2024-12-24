@@ -22,6 +22,7 @@ static void increment_counter(const unsigned char *initial_counter, long increme
         }
     }
 }
+
 static int aes_ctr_decrypt_blockwise(EVP_CIPHER_CTX *ecb_ctx, unsigned char *buf, size_t length, unsigned char *base_counter, size_t local_offset) {
     unsigned char keystream[BLOCK_SIZE];
     size_t processed = 0;
