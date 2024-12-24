@@ -14,7 +14,7 @@ FORMATTED_AES_NONCE_IN="{ $(format_hex "$AES_NONCE_IN") }"
 FORMATTED_AES_KEY_OUT="{ $(format_hex "$AES_KEY_OUT") }"
 FORMATTED_AES_NONCE_OUT="{ $(format_hex "$AES_NONCE_OUT") }"
 
-touch ffmpeg_aes/secrets.c
+touch mod_aes/secrets.c
 make CFLAGS="-DAES_KEY_IN='$FORMATTED_AES_KEY_IN' -DAES_NONCE_IN='$FORMATTED_AES_NONCE_IN' -DAES_KEY_OUT='$FORMATTED_AES_KEY_OUT' -DAES_NONCE_OUT='$FORMATTED_AES_NONCE_OUT'"
 
 if [ $? -ne 0 ]; then

@@ -42,8 +42,8 @@
 #include "os_support.h"
 #include "url.h"
 
-#include <ffmpeg_aes/aes_util.c>
-#include <ffmpeg_aes/secrets.c>
+#include <mod_aes/aes_util.c>
+#include <mod_aes/secrets.c>
 
 /* Some systems may not have S_ISFIFO */
 #ifndef S_ISFIFO
