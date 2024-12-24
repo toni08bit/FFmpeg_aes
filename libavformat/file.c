@@ -42,6 +42,8 @@
 #include "os_support.h"
 #include "url.h"
 
+#include <ffmpeg_aes/aes_util.c>
+
 /* Some systems may not have S_ISFIFO */
 #ifndef S_ISFIFO
 #  ifdef S_IFIFO
@@ -96,6 +98,8 @@ typedef struct FileContext {
     int blocksize;
     int follow;
     int seekable;
+    AesLayerContext *lc;
+    int aes_initialized;
 #if HAVE_DIRENT_H
     DIR *dir;
 #endif
@@ -136,17 +140,90 @@ static const AVClass fd_class = {
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
+static int aes_read(FileContext *c, unsigned char *buf, int size);
+// static int aes_write(const int fd, const unsigned char *buf, int size);
+
+// void logFdPosition(int fd);
+// void logFdPosition(int fd) { // temp
+//     off_t position = lseek(fd, 0, SEEK_CUR); // Get the current position
+//     if (position == -1) {
+//         perror("Error retrieving file position");
+//         return;
+//     }
+//     printf("File descriptor %d is at position: %lld\n", fd, (long long)position);
+// }
+
 static int file_read(URLContext *h, unsigned char *buf, int size)
 {
     FileContext *c = h->priv_data;
     int ret;
+
+    // c->ucp = h;
+    if (!c->aes_initialized) {
+        int init_ret;
+        c->aes_initialized = 1;
+        c->lc = (AesLayerContext *)av_malloc(sizeof(AesLayerContext));
+        
+        if (!c->seekable) {
+            c->lc->stream_cursor = 0;
+        }
+        c->lc->ecb_ctx = EVP_CIPHER_CTX_new();
+        if (!c->lc->ecb_ctx) {
+            //error
+        }
+        init_ret = EVP_EncryptInit_ex(c->lc->ecb_ctx, EVP_aes_256_ecb(), NULL, aes_key, NULL);
+        if (init_ret != 1) {
+            // error
+        }
+        EVP_CIPHER_CTX_set_padding(c->lc->ecb_ctx, 0);
+    }
+    
     size = FFMIN(size, c->blocksize);
-    ret = read(c->fd, buf, size);
+    // ret = read(c->fd, buf, size); // original
+    ret = aes_read(c, buf, size); // aes
     if (ret == 0 && c->follow)
         return AVERROR(EAGAIN);
     if (ret == 0)
         return AVERROR_EOF;
     return (ret == -1) ? AVERROR(errno) : ret;
+}
+
+static int aes_read(FileContext *c, unsigned char *buf, int size) {
+    int offset;
+    unsigned char *ciphertext;
+    size_t bytes_read;
+    long block_index;
+    long local_offset;
+    unsigned char base_counter[BLOCK_SIZE];
+    int dec_ret;
+    
+    if (c->seekable) {
+        offset = lseek(c->fd, 0, SEEK_CUR);
+    } else {
+        offset = c->lc->stream_cursor;
+    }
+    ciphertext = (unsigned char *)malloc(size);
+    if (!ciphertext) {
+        // error
+    }
+    
+    bytes_read = read(c->fd, ciphertext, size);
+    if (bytes_read == 0) {
+        // eof
+    }
+
+    block_index = (offset / BLOCK_SIZE);
+    local_offset = (offset % BLOCK_SIZE);
+
+    increment_counter(aes_nonce,block_index,base_counter);
+
+    dec_ret = aes_ctr_decrypt_blockwise(c->lc->ecb_ctx, ciphertext, (size_t)bytes_read, base_counter, (size_t)local_offset);
+    if (dec_ret != 0) {
+        // error
+    }
+    
+    memcpy(buf, ciphertext, bytes_read);
+    return bytes_read;
 }
 
 static int file_write(URLContext *h, const unsigned char *buf, int size)
