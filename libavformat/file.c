@@ -142,18 +142,32 @@ static const AVClass fd_class = {
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
-static int aes_read(FileContext *c, unsigned char *buf, int size);
-// static int aes_write(const int fd, const unsigned char *buf, int size);
+int init_aes(FileContext *c, int is_streamed);
+static int aes_read(FileContext *c, unsigned char *buf, size_t size);
+static int aes_write(FileContext *c, const void *buf, size_t size);
 
-// void logFdPosition(int fd);
-// void logFdPosition(int fd) { // temp
-//     off_t position = lseek(fd, 0, SEEK_CUR); // Get the current position
-//     if (position == -1) {
-//         perror("Error retrieving file position");
-//         return;
-//     }
-//     printf("File descriptor %d is at position: %lld\n", fd, (long long)position);
-// }
+
+int init_aes(FileContext *c, int is_streamed) {
+    int init_ret;
+    c->aes_initialized = 1;
+    c->lc = (AesLayerContext *)av_malloc(sizeof(AesLayerContext));
+    c->aes_seek_enabled = !is_streamed;
+    
+    if (!c->aes_seek_enabled) {
+        c->lc->stream_cursor = 0;
+    }
+    c->lc->ecb_ctx = EVP_CIPHER_CTX_new();
+    if (!c->lc->ecb_ctx) {
+        av_log(NULL, AV_LOG_FATAL, "Failed to create aes-context.");
+        return -1;
+    }
+    init_ret = EVP_EncryptInit_ex(c->lc->ecb_ctx, EVP_aes_256_ecb(), NULL, aes_key_in, NULL);
+    if (init_ret != 1) {
+        av_log(NULL, AV_LOG_FATAL, "Failed to initialize ecb for aes-context.");
+        return -1;
+    }
+    EVP_CIPHER_CTX_set_padding(c->lc->ecb_ctx, 0);
+}
 
 static int file_read(URLContext *h, unsigned char *buf, int size)
 {
@@ -161,30 +175,14 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
     int ret;
 
     if (!c->aes_initialized) {
-        int init_ret;
-        c->aes_initialized = 1;
-        c->lc = (AesLayerContext *)av_malloc(sizeof(AesLayerContext));
-        c->aes_seek_enabled = !h->is_streamed;
-        
-        if (!c->aes_seek_enabled) {
-            c->lc->stream_cursor = 0;
-        }
-        c->lc->ecb_ctx = EVP_CIPHER_CTX_new();
-        if (!c->lc->ecb_ctx) {
-            av_log(NULL, AV_LOG_FATAL, "Failed to create aes-context.");
-            return -1;
-        }
-        init_ret = EVP_EncryptInit_ex(c->lc->ecb_ctx, EVP_aes_256_ecb(), NULL, aes_key_in, NULL);
-        if (init_ret != 1) {
-            av_log(NULL, AV_LOG_FATAL, "Failed to initialize ecb for aes-context.");
-            return -1;
-        }
-        EVP_CIPHER_CTX_set_padding(c->lc->ecb_ctx, 0);
+        init_aes(c,h->is_streamed);
     }
     
     size = FFMIN(size, c->blocksize);
+
     // ret = read(c->fd, buf, size); // original
     ret = aes_read(c, buf, size); // aes
+
     if (ret == 0 && c->follow)
         return AVERROR(EAGAIN);
     if (ret == 0)
@@ -192,7 +190,7 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
     return (ret == -1) ? AVERROR(errno) : ret;
 }
 
-static int aes_read(FileContext *c, unsigned char *buf, int size) {
+static int aes_read(FileContext *c, unsigned char *buf, size_t size) {
     int offset;
     unsigned char *ciphertext;
     size_t bytes_read;
@@ -235,9 +233,24 @@ static int file_write(URLContext *h, const unsigned char *buf, int size)
 {
     FileContext *c = h->priv_data;
     int ret;
+    if (!c->aes_initialized) {
+        init_aes(c,h->is_streamed);
+    }
+
     size = FFMIN(size, c->blocksize);
-    ret = write(c->fd, buf, size);
+
+    // ret = write(c->fd, buf, size); // original
+    ret = aes_write(c, buf, size); // aes
+
     return (ret == -1) ? AVERROR(errno) : ret;
+}
+
+static int aes_write(FileContext *c, const void *buf, size_t size) {
+    int offset;
+
+    if (c->aes_seek_enabled) {
+
+    }
 }
 
 static int file_get_handle(URLContext *h)
