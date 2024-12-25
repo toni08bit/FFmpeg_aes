@@ -142,12 +142,12 @@ static const AVClass fd_class = {
     .version    = LIBAVUTIL_VERSION_INT,
 };
 
-int init_aes(FileContext *c, int is_streamed);
+int init_aes(FileContext *c, int is_streamed, const unsigned char *aes_key);
 static int aes_read(FileContext *c, unsigned char *buf, size_t size);
 static int aes_write(FileContext *c, const void *buf, size_t size);
 
 
-int init_aes(FileContext *c, int is_streamed) {
+int init_aes(FileContext *c, int is_streamed, const unsigned char *aes_key) {
     int init_ret;
     c->aes_initialized = 1;
     c->lc = (AesLayerContext *)av_malloc(sizeof(AesLayerContext));
@@ -158,12 +158,12 @@ int init_aes(FileContext *c, int is_streamed) {
     }
     c->lc->ecb_ctx = EVP_CIPHER_CTX_new();
     if (!c->lc->ecb_ctx) {
-        av_log(NULL, AV_LOG_FATAL, "Failed to create aes-context.");
+        av_log(NULL, AV_LOG_FATAL, "Failed to create aes-context.\n");
         return -1;
     }
-    init_ret = EVP_EncryptInit_ex(c->lc->ecb_ctx, EVP_aes_256_ecb(), NULL, aes_key_in, NULL);
+    init_ret = EVP_EncryptInit_ex(c->lc->ecb_ctx, EVP_aes_256_ecb(), NULL, aes_key, NULL);
     if (init_ret != 1) {
-        av_log(NULL, AV_LOG_FATAL, "Failed to initialize ecb for aes-context.");
+        av_log(NULL, AV_LOG_FATAL, "Failed to initialize ecb for aes-context.\n");
         return -1;
     }
     EVP_CIPHER_CTX_set_padding(c->lc->ecb_ctx, 0);
@@ -178,7 +178,7 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
 
     if (!c->aes_initialized) {
         int init_ret;
-        init_ret = init_aes(c,h->is_streamed);
+        init_ret = init_aes(c,h->is_streamed,aes_key_in);
 
         if (init_ret != 0) {
             return init_ret;
@@ -228,7 +228,7 @@ static int aes_read(FileContext *c, unsigned char *buf, size_t size) {
         c->lc->stream_cursor += bytes_read;
     }
     if (dec_ret != 0) {
-        av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt ciphertext buffer.");
+        av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt ciphertext buffer.\n");
         return -1;
     }
 
@@ -242,7 +242,7 @@ static int file_write(URLContext *h, const unsigned char *buf, int size)
     int ret;
     if (!c->aes_initialized) {
         int init_ret;
-        init_ret = init_aes(c,h->is_streamed);
+        init_ret = init_aes(c,h->is_streamed,aes_key_out);
 
         if (init_ret != 0) {
             return init_ret;
@@ -257,12 +257,53 @@ static int file_write(URLContext *h, const unsigned char *buf, int size)
     return (ret == -1) ? AVERROR(errno) : ret;
 }
 
+// unfinished
 static int aes_write(FileContext *c, const void *buf, size_t size) {
     int offset;
+    unsigned char *ciphertext;
+    size_t bytes_written;
+    long block_index;
+    long local_offset;
+    unsigned char base_counter[BLOCK_SIZE];
+    int enc_ret;
 
     if (c->aes_seek_enabled) {
-
+        offset = lseek(c->fd, 0, SEEK_CUR);
+    } else {
+        offset = c->lc->stream_cursor;
     }
+
+    ciphertext = (unsigned char *)av_malloc(size);
+    if (!ciphertext) {
+        av_log(NULL, AV_LOG_FATAL, "Failed to allocate ciphertext buffer.\n");
+        return -1;
+    }
+
+    block_index = (offset / BLOCK_SIZE);
+    local_offset = (offset % BLOCK_SIZE);
+
+    increment_counter(aes_nonce_out, block_index, base_counter);
+
+    enc_ret = aes_ctr_encrypt_blockwise(c->lc->ecb_ctx, (const unsigned char *)buf, ciphertext, size, base_counter, (size_t)local_offset);
+    if (enc_ret != 0) {
+        av_log(NULL, AV_LOG_FATAL, "Failed to aes-encrypt plaintext buffer.\n");
+        av_free(ciphertext);
+        return -1;
+    }
+
+    bytes_written = write(c->fd, ciphertext, size);
+    av_free(ciphertext);
+
+    if (bytes_written < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Failed to write ciphertext.\n");
+        return -1;
+    }
+
+    if (!c->aes_seek_enabled) {
+        c->lc->stream_cursor += bytes_written;
+    }
+
+    return bytes_written;
 }
 
 static int file_get_handle(URLContext *h)

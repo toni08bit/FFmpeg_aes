@@ -35,7 +35,7 @@ static int aes_ctr_decrypt_blockwise(EVP_CIPHER_CTX *ecb_ctx, unsigned char *buf
         output_len = 0;
         upd_ret = EVP_EncryptUpdate(ecb_ctx, keystream, &output_len, base_counter, BLOCK_SIZE);
         if (upd_ret != 1) {
-            av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt a block.");
+            av_log(NULL, AV_LOG_FATAL, "Failed to aes-decrypt a block.\n");
             return -1;
         }
         block_bytes = (BLOCK_SIZE - local_offset_edit);
@@ -52,6 +52,46 @@ static int aes_ctr_decrypt_blockwise(EVP_CIPHER_CTX *ecb_ctx, unsigned char *buf
 
         if (processed < length) {
             for (int i = (BLOCK_SIZE - 1); i >= 0; i--) {
+                base_counter[i]++;
+                if (base_counter[i] != 0) {
+                    break;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+static int aes_ctr_encrypt_blockwise(EVP_CIPHER_CTX *ecb_ctx, const unsigned char *buf_in, unsigned char *buf_out, size_t length, unsigned char *base_counter, size_t local_offset) {
+    unsigned char keystream[BLOCK_SIZE];
+    size_t processed = 0;
+    size_t local_offset_edit = local_offset;
+    size_t block_bytes;
+
+    while (processed < length) {
+        int output_len = 0;
+        int upd_ret;
+
+        upd_ret = EVP_EncryptUpdate(ecb_ctx, keystream, &output_len, base_counter, BLOCK_SIZE);
+        if (upd_ret != 1) {
+            av_log(NULL, AV_LOG_FATAL, "Failed to aes-encrypt a block.\n");
+            return -1;
+        }
+
+        block_bytes = (BLOCK_SIZE - local_offset_edit);
+        if (block_bytes > (length - processed)) {
+            block_bytes = (length - processed);
+        }
+
+        for (size_t i = 0; i < block_bytes; i++) {
+            buf_out[processed + i] = (buf_in[processed + i] ^ keystream[local_offset_edit + i]);
+        }
+
+        processed += block_bytes;
+        local_offset_edit = 0;
+
+        if (processed < length) {
+            for (int i = BLOCK_SIZE - 1; i >= 0; i--) {
                 base_counter[i]++;
                 if (base_counter[i] != 0) {
                     break;
