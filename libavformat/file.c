@@ -167,6 +167,8 @@ int init_aes(FileContext *c, int is_streamed) {
         return -1;
     }
     EVP_CIPHER_CTX_set_padding(c->lc->ecb_ctx, 0);
+
+    return 0;
 }
 
 static int file_read(URLContext *h, unsigned char *buf, int size)
@@ -175,7 +177,12 @@ static int file_read(URLContext *h, unsigned char *buf, int size)
     int ret;
 
     if (!c->aes_initialized) {
-        init_aes(c,h->is_streamed);
+        int init_ret;
+        init_ret = init_aes(c,h->is_streamed);
+
+        if (init_ret != 0) {
+            return init_ret;
+        }
     }
     
     size = FFMIN(size, c->blocksize);
@@ -234,7 +241,12 @@ static int file_write(URLContext *h, const unsigned char *buf, int size)
     FileContext *c = h->priv_data;
     int ret;
     if (!c->aes_initialized) {
-        init_aes(c,h->is_streamed);
+        int init_ret;
+        init_ret = init_aes(c,h->is_streamed);
+
+        if (init_ret != 0) {
+            return init_ret;
+        }
     }
 
     size = FFMIN(size, c->blocksize);
