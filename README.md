@@ -18,7 +18,7 @@ To ensure the integrity and security of the encryption process, please follow th
 
 2. Configure FFmpeg with the necessary options:
    ```sh
-   ./configure --enable-gpl --enable-libx264 --enable-openssl --enable-version3
+   ./configure --enable-static --enable-gpl --enable-libx264 --enable-openssl --enable-version3
    ```
 
 3. Run the `generate.sh` script to build the executables and generate the random keys:
