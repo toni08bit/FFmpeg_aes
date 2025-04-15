@@ -38,12 +38,27 @@ To ensure the integrity and security of the encryption process, please follow th
    ./generate.sh
    ```
 
+**Store these keys in a safe location.**
 This script generates unique `aes_key` and `aes_nonce` for each input and output. These are the randomly generated, hardcoded keys for the encryption and decryption process.
 You need to encrypt your input files with the aes_key_in and aes_nonce_in, the output will be encrypted by ffmpeg_aes using the aes_key_out and aes_nonce_out.
 
 ## Usage
 
-### Encrypting and Decrypting Videos
+### File Encryption
+
+Your input and output files need to be encrypted using AES-256-CTR. OpenSSL is usually pre-installed on all UNIX systems and offers this functionality from the command line.
+To encrypt:
+```sh
+openssl enc -aes-256-ctr -in *input.mp4* -out *input.mp4.aes* -K *AES_KEY_IN* -iv *AES_NONCE_IN*
+```
+
+To decrypt:
+```sh
+openssl enc -aes-256-ctr -d -in *output.aes.mp4* -out *output.mp4* -K *AES_KEY_OUT* -iv *AES_NONCE_OUT*
+```
+
+
+### FFmpeg Usage
 
 All input and output files are automatically processed through an AES encryption or decryption layer. The FFmpeg commands will handle this implicitly, ensuring that all multimedia content is securely processed.
 
