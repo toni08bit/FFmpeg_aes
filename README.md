@@ -6,6 +6,18 @@ FFmpeg is a collection of libraries and tools to process multimedia content such
 
 This modified version of FFmpeg is designed to handle only encrypted input and output files. The input files must be AES-CTR encrypted with the keys generated during the build process using the `generate.sh` script. The output files will always be encrypted by the program using the same keys.
 
+| Feature | **Standard FFmpeg** | **`toni08bit/FFmpeg_aes` (This Fork)** |
+|---------|---------------------|----------------------------------------|
+| **Encryption Support** | ⚠️ *Basic support via `-decryption_key` and external tools (e.g., AES-CBC)* | ✅ *Built-in AES-CTR (Counter mode) encryption/decryption at the I/O layer* |
+| **Mode of Operation** | ⚠️ *AES-CBC / AES-ECB (when used externally)*<br>🟥 Susceptible to padding oracle attacks and block pattern leakage | ✅ *AES-CTR (stream cipher mode)*<br>🟩 No padding, supports random access, resistant to ciphertext pattern analysis |
+| **Key Management** | ❌ *Manual and external; keys must be securely stored/transmitted by the developer* | ✅ *Keys and nonces securely generated at build-time using `generate.sh` and hardcoded into the binary* |
+| **Encryption Transparency** | ❌ *Developer must pre/post-process using third-party tools* | ✅ *Encryption and decryption are fully transparent and integrated into FFmpeg's I/O pipeline* |
+| **Input File Handling** | ❌ *Assumes plaintext input* | ✅ *Input must be AES-CTR encrypted with matched keys; secure-by-default pipeline* |
+| **Output File Handling** | ❌ *Output is always plaintext unless externally encrypted post-process* | ✅ *Output is automatically AES-CTR encrypted using build-time keys* |
+| **Security Posture in Untrusted Environments** | ⚠️ *Plaintext video files at rest; high risk in shared or cloud servers* | ✅ *No raw media ever written to disk; suitable for secure compute and CDN workflows* |
+| **API / Codebase Changes** | ❌ *No encryption-focused API* | ✅ *Custom extensions in `ffmpeg_aes`, isolated and audit-friendly* |
+| **Developer Overhead** | ⚠️ *Requires manual cryptographic routines and secure tooling integration* | ✅ *Zero-config encryption once compiled; simplifies OpSec in secure media pipelines* |
+
 ## Installation
 
 To ensure the integrity and security of the encryption process, please follow these installation instructions carefully. Do not use `make install` or execute the `make` command directly.
